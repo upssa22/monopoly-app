@@ -6,31 +6,49 @@
     <title>لوحة تحكم الإدارة | القاموس</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <style>body { font-family: system-ui, sans-serif; }</style>
 </head>
 <body class="bg-gray-800 text-white min-h-screen p-6">
     <div class="max-w-4xl mx-auto">
-        <h1 class="text-3xl font-bold text-center text-yellow-400 mb-8">لوحة تحكم الإدارة (إضافة الكروت الأساسية)</h1>
+        <h1 class="text-3xl font-bold text-center text-yellow-400 mb-8">لوحة تحكم الإدارة (القاموس الأساسي)</h1>
         
+        <div class="bg-gray-700 p-6 rounded-lg shadow-lg mb-8 border border-yellow-500">
+            <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2 text-yellow-400">الرفع الشامل (ملف اللعبة الأصلي)</h2>
+            <p class="text-sm text-gray-300 mb-4">
+                هذا الزر مبرمج خصيصاً ليقرأ ملفاتك، يكتشف المجموعات ذات الأسطر المتعددة، ويعد النجوم تلقائياً!
+            </p>
+            <div class="flex items-center gap-4">
+                <input type="file" id="csvMasterInp" accept=".csv" class="hidden" onchange="uploadMasterCSV()">
+                <button onclick="document.getElementById('csvMasterInp').click()" id="uploadBtn" class="bg-green-600 hover:bg-green-700 font-bold py-2 px-6 rounded transition-colors w-full">
+                    اختر ملف CSV وارفع القاموس كاملاً
+                </button>
+                <button onclick="deleteAllCards()" class="bg-red-600 hover:bg-red-700 font-bold py-2 px-6 rounded transition-colors whitespace-nowrap">
+                    مسح جميع الكروت ⚠️
+                </button>
+            </div>
+        </div>
+
         <div class="bg-gray-700 p-6 rounded-lg shadow-lg mb-8">
-            <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2">إضافة كرت جديد للقاعدة الأساسية</h2>
+            <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2">إضافة كرت فردي يدوياً</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block mb-1 text-sm">اسم المجموعة (Set Name)</label>
-                    <input type="text" id="setName" class="w-full p-2 rounded bg-gray-600 text-white border border-gray-500 focus:border-blue-500" placeholder="مثال: مجموعة 1">
+                    <label class="block mb-1 text-sm">اسم المجموعة</label>
+                    <input type="text" id="setName" class="w-full p-2 rounded bg-gray-600 text-white border border-gray-500 focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block mb-1 text-sm">اسم الكرت (Card Name)</label>
+                    <label class="block mb-1 text-sm">اسم الكرت</label>
                     <input type="text" id="cardName" class="w-full p-2 rounded bg-gray-600 text-white border border-gray-500 focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block mb-1 text-sm">عدد النجوم (Stars)</label>
+                    <label class="block mb-1 text-sm">النجوم</label>
                     <select id="stars" class="w-full p-2 rounded bg-gray-600 text-white border border-gray-500">
                         <option value="1">⭐ 1</option>
                         <option value="2">⭐⭐ 2</option>
                         <option value="3">⭐⭐⭐ 3</option>
                         <option value="4">⭐⭐⭐⭐ 4</option>
                         <option value="5">⭐⭐⭐⭐⭐ 5</option>
+                        <option value="6">⭐⭐⭐⭐⭐⭐ 6</option>
                     </select>
                 </div>
                 <div class="flex items-center mt-6">
@@ -38,22 +56,25 @@
                     <label for="isGold" class="ml-2 font-bold text-yellow-400">هل الكرت ذهبي؟</label>
                 </div>
             </div>
-            <button onclick="addMasterCard()" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 font-bold py-3 rounded transition-colors">
-                حفظ الكرت في قاعدة البيانات
+            <button onclick="addMasterCard()" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 font-bold py-2 rounded transition-colors">
+                حفظ الكرت اليدوي
             </button>
         </div>
 
         <div class="bg-gray-700 p-6 rounded-lg shadow-lg">
-            <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2">الكروت المتوفرة حالياً في النظام</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full text-right">
-                    <thead class="bg-gray-600 text-gray-300">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-600 pb-2">
+                <h2 class="text-xl font-bold">الكروت المتوفرة في القاموس</h2>
+                <span id="totalCardsCount" class="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold">العدد: 0</span>
+            </div>
+            <div class="overflow-x-auto h-96 overflow-y-auto">
+                <table class="w-full text-right relative">
+                    <thead class="bg-gray-600 text-gray-300 sticky top-0">
                         <tr>
-                            <th class="p-3 rounded-tr">المجموعة</th>
+                            <th class="p-3">المجموعة</th>
                             <th class="p-3">اسم الكرت</th>
                             <th class="p-3">النجوم</th>
                             <th class="p-3">النوع</th>
-                            <th class="p-3 rounded-tl">إجراء</th>
+                            <th class="p-3">إجراء</th>
                         </tr>
                     </thead>
                     <tbody id="masterCardsTable" class="divide-y divide-gray-600">
@@ -64,10 +85,93 @@
     </div>
 
     <script>
-        // ضع مفاتيح Supabase هنا
+        // --------- ضع مفاتيحك هنا ---------
         const SB_URL = 'ضع_الرابط_هنا';
         const SB_KEY = 'ضع_المفتاح_هنا';
+        // ----------------------------------
         const supabase = supabase.createClient(SB_URL, SB_KEY);
+
+        // دالة الرفع الشامل باستخدام مكتبة PapaParse الذكية
+        async function uploadMasterCSV() {
+            const file = document.getElementById('csvMasterInp').files[0];
+            if (!file) return;
+
+            const btn = document.getElementById('uploadBtn');
+            btn.innerText = "جاري القراءة والمعالجة...";
+            btn.classList.add("opacity-50", "cursor-not-allowed");
+
+            // استخدام PapaParse لضمان قراءة الأسطر المتعددة داخل الخلايا بشكل صحيح
+            Papa.parse(file, {
+                complete: async function(results) {
+                    const rows = results.data;
+                    const cardsToInsert = [];
+                    let currentSet = "مجموعة غير معروفة";
+
+                    // نبدأ من 1 لتجاهل صف العناوين (Header)
+                    for (let i = 1; i < rows.length; i++) {
+                        const cols = rows[i];
+                        
+                        // التأكد من أن الصف يحتوي على بيانات
+                        if (cols.length >= 3) {
+                            // تنظيف النص واستبدال "النزول لسطر جديد" بـ "مسافة"
+                            let setNameStr = cols[0] ? cols[0].replace(/\r?\n|\r/g, ' ').trim() : "";
+                            let cardName = cols[1] ? cols[1].replace(/\r?\n|\r/g, ' ').trim() : "";
+                            let starsStr = cols[2] ? cols[2].trim() : "";
+                            
+                            if (setNameStr !== "") {
+                                currentSet = setNameStr;
+                            }
+
+                            if (cardName && cardName !== "") {
+                                const starsCount = [...starsStr].filter(c => c === '⭐' || c === '🌟').length || 1;
+                                const isGold = starsStr.includes('🌟');
+                                
+                                cardsToInsert.push({
+                                    set_name: currentSet,
+                                    card_name: cardName,
+                                    stars: starsCount,
+                                    is_gold: isGold
+                                });
+                            }
+                        }
+                    }
+
+                    if (cardsToInsert.length === 0) {
+                        alert("الملف فارغ أو التنسيق غير صحيح!");
+                        resetBtn(btn);
+                        return;
+                    }
+
+                    btn.innerText = "جاري الرفع للسحابة...";
+                    const { error } = await supabase.from('master_cards').insert(cardsToInsert);
+                    
+                    resetBtn(btn);
+                    
+                    if (error) {
+                        alert("حدث خطأ أثناء الرفع: " + error.message);
+                    } else {
+                        alert(`عمل رائع! تم استخراج ورفع ${cardsToInsert.length} كرت للقاموس بنجاح!`);
+                        loadMasterCards();
+                    }
+                },
+                error: function(error) {
+                    alert("خطأ في قراءة الملف: " + error.message);
+                    resetBtn(btn);
+                }
+            });
+        }
+
+        function resetBtn(btn) {
+            btn.innerText = "اختر ملف CSV وارفع القاموس كاملاً";
+            btn.classList.remove("opacity-50", "cursor-not-allowed");
+            document.getElementById('csvMasterInp').value = "";
+        }
+
+        async function deleteAllCards() {
+            if(!confirm('تحذير: هل أنت متأكد من مسح جميع الكروت من القاموس الأساسي؟')) return;
+            await supabase.from('master_cards').delete().gt('id', 0);
+            loadMasterCards();
+        }
 
         async function addMasterCard() {
             const setName = document.getElementById('setName').value;
@@ -78,50 +182,48 @@
             if (!setName || !cardName) return alert("يرجى إدخال اسم المجموعة واسم الكرت!");
 
             const { error } = await supabase.from('master_cards').insert([{
-                set_name: setName,
-                card_name: cardName,
-                stars: parseInt(stars),
-                is_gold: isGold
+                set_name: setName, card_name: cardName, stars: parseInt(stars), is_gold: isGold
             }]);
 
             if (error) alert("خطأ: " + error.message);
             else {
-                document.getElementById('cardName').value = ''; // تفريغ الخانة للكرت التالي
+                document.getElementById('cardName').value = ''; 
                 loadMasterCards();
             }
         }
 
         async function loadMasterCards() {
             const tbody = document.getElementById('masterCardsTable');
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4">جاري التحميل...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4">جاري التحميل من السحابة...</td></tr>';
             
-            const { data, error } = await supabase.from('master_cards').select('*').order('set_name', { ascending: true });
+            const { data, error } = await supabase.from('master_cards').select('*').order('id', { ascending: true });
             
             if (error) {
                 tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-500 p-4">${error.message}</td></tr>`;
                 return;
             }
 
+            document.getElementById('totalCardsCount').innerText = `العدد: ${data.length}`;
+
             tbody.innerHTML = data.map(card => `
-                <tr class="hover:bg-gray-600 transition-colors">
+                <tr class="hover:bg-gray-600 transition-colors border-b border-gray-600">
                     <td class="p-3">${card.set_name}</td>
                     <td class="p-3 font-bold ${card.is_gold ? 'text-yellow-400' : ''}">${card.card_name}</td>
                     <td class="p-3">${'⭐'.repeat(card.stars)}</td>
-                    <td class="p-3">${card.is_gold ? '<span class="bg-yellow-600 text-xs px-2 py-1 rounded">ذهبي</span>' : 'عادي'}</td>
+                    <td class="p-3">${card.is_gold ? '<span class="bg-yellow-600 text-xs px-2 py-1 rounded">ذهبي</span>' : '<span class="text-gray-400 text-xs">عادي</span>'}</td>
                     <td class="p-3">
-                        <button onclick="deleteCard(${card.id})" class="text-red-400 hover:text-red-300">حذف</button>
+                        <button onclick="deleteCard(${card.id})" class="text-red-400 hover:text-red-300 bg-red-900 bg-opacity-30 px-2 py-1 rounded">حذف</button>
                     </td>
                 </tr>
             `).join('');
         }
 
         async function deleteCard(id) {
-            if(!confirm('هل تريد حذف هذا الكرت من النظام بالكامل؟')) return;
+            if(!confirm('هل تريد حذف هذا الكرت؟')) return;
             await supabase.from('master_cards').delete().eq('id', id);
             loadMasterCards();
         }
 
-        // تحميل الكروت عند فتح الصفحة
         window.onload = loadMasterCards;
     </script>
 </body>
