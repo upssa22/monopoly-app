@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monopoly Manager | النسخة السحابية</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { background: #f5f7fa; padding: 20px; font-family: sans-serif; }
+        .header-section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .set-container { background: white; margin-bottom: 20px; border-radius: 8px; border: 1px solid #ddd; overflow: hidden; }
+        .set-title { background: #2c3e50; color: white; padding: 10px 20px; display: flex; justify-content: space-between; }
+        .table { font-size: 0.9rem; width: 100%; }
+        .trade-send { background-color: #d4edda !important; font-weight: bold; color: #155724; }
+        .trade-receive { background-color: #fff3cd !important; font-weight: bold; color: #856404; }
+        .gold-card { color: #b8860b; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-section">
+            <h1 class="title is-4 has-text-centered">مدير مونو بولي السحابي 🃏</h1>
+            <div class="columns is-vcentered">
+                <div class="column is-5">
+                    <input class="input" id="accName" placeholder="اسم الحساب (مثلاً: الرئيسي)">
+                </div>
+                <div class="column is-narrow">
+                    <input type="file" id="csvInp" style="display:none" accept=".csv" onchange="handleCSV()">
+                    <button class="button is-link" onclick="document.getElementById('csvInp').click()">رفع ملف CSV</button>
+                </div>
+            </div>
+            <button class="button is-success is-fullwidth mt-3" onclick="loadData()">تحديث وعرض الجداول ✨</button>
+        </div>
+        <div id="tablesArea"></div>
+    </div>
+
+    <script>
+        // --- ضع بياناتك هنا ---
+        const SB_URL = 'ضع_رابط_المشروع_هنا'; 
+        const SB_KEY = 'ضع_المفتاح_العام_هنا';
+        // -----------------------
+
+        const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+
+        async function handleCSV() {
+            const name = document.getElementById('accName').value;
+            const file = document.getElementById('csvInp').files[0];
+            if(!name || !file) return alert("يرجى كتابة اسم الحساب واختيار الملف");
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const rows = e.target.result.split('\n').slice(1);
+                const dataToUpload = rows.map(row => {
+                    const c = row.split(',');
+                    if(c.length < 4) return null;
+                    return {
+                        account_name: name,
+                        set_name: c[0].trim(),
+                        card_name: c[1].trim(),
+                        count: parseInt(c[3]) || 0,
+                        is_gold: c[4]?.includes('Y') || false
+                    };
+                }).filter(r => r !== null && r.card_name);
+
+                await supabaseClient.from('user_cards').delete().eq('account_name', name);
+                const { error } = await supabaseClient.from('user_cards').insert(dataToUpload);
+                
+                if(error) alert("خطأ: " + error.message);
+                else { alert("تم الحفظ بنجاح!"); loadData(); }
+            };
+            reader.readAsText(file);
+        }
+
+        async function loadData() {
+            const { data } = await supabaseClient.from('user_cards').select('*');
+            if(data) renderUI(data);
+        }
+
+        function renderUI(data) {
+            const area = document.getElementById('tablesArea');
+            area.innerHTML = "";
+            const accounts = [...new Set(data.map(d => d.account_name))];
+            const sets = [...new Set(data.map(d => d.set_name))];
+
+            sets.forEach(setName => {
+                const setCards = data.filter(d => d.set_name === setName);
+                const uniqueCardNames = [...new Set(setCards.map(d => d.card_name))];
+                let tableHTML = `<div class="set-container"><div class="set-title">${setName}</div><table class="table is-bordered"><thead><tr><th>الكرت</th>${accounts.map(a => `<th>${a.substring(0,3)}</th>`).join('')}</tr></thead><tbody>`;
+
+                uniqueCardNames.forEach(cardName => {
+                    const currentCardData = setCards.filter(c => c.card_name === cardName);
+                    const counts = accounts.map(acc => currentCardData.find(c => c.account_name === acc)?.count || 0);
+                    const canTrade = counts.some(c => c >= 2) && counts.some(c => c === 0);
+
+                    tableHTML += `<tr><td>${cardName}</td>${counts.map(n => {
+                        let cls = (canTrade && n >= 2) ? 'trade-send' : (canTrade && n === 0) ? 'trade-receive' : '';
+                        return `<td class="${cls}">${n}</td>`;
+                    }).join('')}</tr>`;
+                });
+                tableHTML += `</tbody></table></div>`;
+                area.innerHTML += tableHTML;
+            });
+        }
+
+        window.onload = loadData;
+    </script>
+</body>
+</html>
