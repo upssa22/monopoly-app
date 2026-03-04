@@ -16,16 +16,26 @@
         <div class="bg-gray-700 p-6 rounded-lg shadow-lg mb-8 border border-yellow-500">
             <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2 text-yellow-400">الرفع الشامل (ملف اللعبة الأصلي MR17.CSV)</h2>
             <p class="text-sm text-gray-300 mb-4">
-                هذا الزر مبرمج خصيصاً ليقرأ ملفاتك، يكتشف المجموعات المدمجة، ويعد النجوم تلقائياً، مع رسائل تنبيه توضح حالة الرفع!
+                الخطوة 1: اختر الملف. الخطوة 2: اضغط تأكيد ورفع.
             </p>
-            <div class="flex items-center gap-4">
-                <input type="file" id="csvMasterInp" accept=".csv" class="hidden" onchange="uploadMasterCSV()">
-                <button onclick="document.getElementById('csvMasterInp').click()" id="uploadBtn" class="bg-green-600 hover:bg-green-700 font-bold py-2 px-6 rounded transition-colors w-full">
-                    اختر ملف CSV وارفع القاموس كاملاً
-                </button>
-                <button onclick="deleteAllCards()" class="bg-red-600 hover:bg-red-700 font-bold py-2 px-6 rounded transition-colors whitespace-nowrap">
-                    مسح جميع الكروت ⚠️
-                </button>
+            
+            <div class="flex flex-col gap-4">
+                <div class="flex items-center gap-4 bg-gray-600 p-3 rounded">
+                    <input type="file" id="csvMasterInp" accept=".csv" class="hidden" onchange="showFileName()">
+                    <button onclick="document.getElementById('csvMasterInp').click()" class="bg-blue-600 hover:bg-blue-700 font-bold py-2 px-6 rounded transition-colors whitespace-nowrap">
+                        1. اختر ملف CSV
+                    </button>
+                    <span id="fileNameDisplay" class="text-gray-300 font-mono text-sm">لم يتم اختيار ملف بعد...</span>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <button onclick="processUpload()" id="uploadBtn" class="bg-green-600 hover:bg-green-700 font-bold py-2 px-6 rounded transition-colors w-full">
+                        2. تأكيد ورفع البيانات 🚀
+                    </button>
+                    <button onclick="deleteAllCards()" class="bg-red-600 hover:bg-red-700 font-bold py-2 px-6 rounded transition-colors whitespace-nowrap">
+                        مسح جميع الكروت ⚠️
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -85,99 +95,131 @@
     </div>
 
     <script>
-        // --------- لا تنسَ وضع مفاتيحك هنا ---------
-        const SB_URL = 'https://phdfdrrxeisdnjgrybvd.supabase.co';
+        // --------- ضع مفاتيحك هنا ---------
+        const SB_URL = 'https://upssa22.github.io/monopoly-app/admin.html???';
         const SB_KEY = 'sb_publishable_sWVLmXEX4ABujvE60r6nAw_0otUcQOj';
-        // -------------------------------------------
+        // ----------------------------------
         const supabase = supabase.createClient(SB_URL, SB_KEY);
 
-        // دالة الرفع الشامل باستخدام مكتبة PapaParse
-        async function uploadMasterCSV() {
+        // دالة لعرض اسم الملف بعد اختياره
+        function showFileName() {
             const file = document.getElementById('csvMasterInp').files[0];
-            if (!file) return;
+            const display = document.getElementById('fileNameDisplay');
+            if (file) {
+                display.innerText = "الملف المختار: " + file.name;
+                display.classList.replace('text-gray-300', 'text-green-400');
+            } else {
+                display.innerText = "لم يتم اختيار ملف بعد...";
+                display.classList.replace('text-green-400', 'text-gray-300');
+            }
+        }
+
+        // دالة معالجة الرفع (تعمل عند ضغط زر التأكيد)
+        async function processUpload() {
+            const file = document.getElementById('csvMasterInp').files[0];
+            if (!file) {
+                alert("يرجى اختيار ملف CSV أولاً من الخطوة 1!");
+                return;
+            }
 
             const btn = document.getElementById('uploadBtn');
-            btn.innerText = "جاري القراءة والمعالجة...";
+            btn.innerText = "جاري المعالجة...";
             btn.classList.add("opacity-50", "cursor-not-allowed");
+            btn.disabled = true;
 
             Papa.parse(file, {
-                skipEmptyLines: true, // تجاهل الأسطر الفارغة
+                skipEmptyLines: true,
                 complete: async function(results) {
-                    const rows = results.data;
-                    const cardsToInsert = [];
-                    let currentSet = "مجموعة غير معروفة";
+                    try {
+                        const rows = results.data;
+                        const cardsToInsert = [];
+                        let currentSet = "مجموعة غير معروفة";
 
-                    // نبدأ من 1 لتجاهل صف العناوين
-                    for (let i = 1; i < rows.length; i++) {
-                        const cols = rows[i];
-                        
-                        // يجب أن يحتوي الصف على 3 أعمدة على الأقل (المجموعة، الكرت، النجوم)
-                        if (cols.length >= 3) {
-                            let setNameStr = cols[0] ? cols[0].replace(/\r?\n|\r/g, ' ').trim() : "";
-                            let cardName = cols[1] ? cols[1].replace(/\r?\n|\r/g, ' ').trim() : "";
-                            let starsStr = cols[2] ? cols[2].trim() : "";
+                        if (rows.length < 2) {
+                            alert("الملف فارغ أو لا يحتوي على كروت!");
+                            resetBtn(btn);
+                            return;
+                        }
+
+                        // القراءة تبدأ من الصف الثاني لتجاهل صف العناوين (Set,Sticker,Stars,Count)
+                        for (let i = 1; i < rows.length; i++) {
+                            const cols = rows[i];
                             
-                            // تحديث اسم المجموعة إذا لم يكن فارغاً
-                            if (setNameStr !== "") {
-                                currentSet = setNameStr;
-                            }
-
-                            if (cardName !== "") {
-                                const starsCount = [...starsStr].filter(c => c === '⭐' || c === '🌟').length || 1;
-                                const isGold = starsStr.includes('🌟');
+                            if (cols.length >= 3) {
+                                // تنظيف النصوص
+                                let setNameStr = cols[0] ? cols[0].replace(/\r?\n|\r/g, ' ').trim() : "";
+                                let cardName = cols[1] ? cols[1].replace(/\r?\n|\r/g, ' ').trim() : "";
+                                let starsStr = cols[2] ? cols[2].trim() : "";
                                 
-                                cardsToInsert.push({
-                                    set_name: currentSet,
-                                    card_name: cardName,
-                                    stars: starsCount,
-                                    is_gold: isGold
-                                });
+                                if (setNameStr !== "") {
+                                    currentSet = setNameStr;
+                                }
+
+                                if (cardName !== "") {
+                                    // النجوم الذهبية في ملفك هي 🌟 والعادية ⭐
+                                    const starsCount = [...starsStr].filter(c => c === '⭐' || c === '🌟').length || 1;
+                                    const isGold = starsStr.includes('🌟');
+                                    
+                                    cardsToInsert.push({
+                                        set_name: currentSet,
+                                        card_name: cardName,
+                                        stars: starsCount,
+                                        is_gold: isGold
+                                    });
+                                }
                             }
                         }
-                    }
 
-                    // التنبيه الأول: يخبرنا كم كرت تمت قراءته من الملف
-                    alert(`تمت قراءة الملف بنجاح! وجدنا ${cardsToInsert.length} كرت. جاري الآن الحفظ في قاعدة البيانات...`);
+                        alert(`تم تحليل الملف بنجاح! وجدنا ${cardsToInsert.length} كرت. جاري إرسالها لقاعدة البيانات...`);
 
-                    if (cardsToInsert.length === 0) {
-                        alert("لم يتم العثور على كروت صالحة. تأكد من محتوى الملف.");
+                        if (cardsToInsert.length === 0) {
+                            alert("لم نتمكن من استخراج كروت من الملف. تأكد من صيغة الملف.");
+                            resetBtn(btn);
+                            return;
+                        }
+
+                        btn.innerText = "جاري الحفظ في السحابة...";
+                        
+                        // الإرسال لقاعدة البيانات
+                        const { error } = await supabase.from('master_cards').insert(cardsToInsert);
+                        
                         resetBtn(btn);
-                        return;
-                    }
-
-                    btn.innerText = "جاري الرفع للسحابة...";
-                    
-                    // رفع الكروت لـ Supabase
-                    const { error } = await supabase.from('master_cards').insert(cardsToInsert);
-                    
-                    resetBtn(btn);
-                    
-                    if (error) {
-                        // التنبيه الثاني: إذا كان هناك خطأ في الصلاحيات (RLS) سيظهر هنا
-                        alert("خطأ من قاعدة البيانات: " + error.message);
-                    } else {
-                        // التنبيه الثالث: نجاح العملية
-                        alert("عمل رائع! تم استخراج ورفع الكروت للقاموس بنجاح!");
-                        loadMasterCards();
+                        
+                        if (error) {
+                            alert("فشل الحفظ في قاعدة البيانات! تأكد من إيقاف (Disable RLS) للجدول. تفاصيل الخطأ:\n" + error.message);
+                        } else {
+                            alert("نجاح! تم رفع جميع الكروت لقاعدة البيانات.");
+                            // مسح حقل الملف لتجنب رفعه مرتين بالخطأ
+                            document.getElementById('csvMasterInp').value = '';
+                            showFileName();
+                            loadMasterCards();
+                        }
+                    } catch (err) {
+                        alert("حدث خطأ غير متوقع أثناء المعالجة: " + err.message);
+                        resetBtn(btn);
                     }
                 },
                 error: function(error) {
-                    alert("خطأ في قراءة الملف: " + error.message);
+                    alert("فشل المتصفح في قراءة الملف: " + error.message);
                     resetBtn(btn);
                 }
             });
         }
 
         function resetBtn(btn) {
-            btn.innerText = "اختر ملف CSV وارفع القاموس كاملاً";
+            btn.innerText = "2. تأكيد ورفع البيانات 🚀";
             btn.classList.remove("opacity-50", "cursor-not-allowed");
-            document.getElementById('csvMasterInp').value = "";
+            btn.disabled = false;
         }
 
         async function deleteAllCards() {
-            if(!confirm('تحذير: هل أنت متأكد من مسح جميع الكروت من القاموس الأساسي؟')) return;
-            await supabase.from('master_cards').delete().gt('id', 0);
-            loadMasterCards();
+            if(!confirm('هل أنت متأكد تماماً من رغبتك في حذف جميع الكروت من النظام؟')) return;
+            const { error } = await supabase.from('master_cards').delete().gt('id', 0);
+            if(error) alert("خطأ في الحذف: " + error.message);
+            else {
+                alert("تم مسح القاموس بنجاح.");
+                loadMasterCards();
+            }
         }
 
         async function addMasterCard() {
@@ -195,6 +237,7 @@
             if (error) alert("خطأ: " + error.message);
             else {
                 document.getElementById('cardName').value = ''; 
+                alert("تمت إضافة الكرت بنجاح.");
                 loadMasterCards();
             }
         }
@@ -206,11 +249,16 @@
             const { data, error } = await supabase.from('master_cards').select('*').order('id', { ascending: true });
             
             if (error) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-500 p-4">يرجى التأكد من تعطيل (Disable RLS) من Supabase<br>${error.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-500 p-4">لم نتمكن من جلب البيانات. الرجاء التأكد من تعطيل (Disable RLS) في Supabase.<br>تفاصيل: ${error.message}</td></tr>`;
                 return;
             }
 
             document.getElementById('totalCardsCount').innerText = `العدد: ${data.length}`;
+
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4 text-gray-400">القاموس فارغ حالياً. قم برفع الملف للبدء.</td></tr>';
+                return;
+            }
 
             tbody.innerHTML = data.map(card => `
                 <tr class="hover:bg-gray-600 transition-colors border-b border-gray-600">
