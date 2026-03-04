@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم الإدارة | القاموس</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>body { font-family: system-ui, sans-serif; }</style>
+</head>
+<body class="bg-gray-800 text-white min-h-screen p-6">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold text-center text-yellow-400 mb-8">لوحة تحكم الإدارة (القاموس الأساسي)</h1>
+        
+        <div class="bg-gray-700 p-6 rounded-lg shadow-lg mb-8 border border-yellow-500">
+            <h2 id="uploadSectionTitle" class="text-xl font-bold mb-4 border-b border-gray-600 pb-2 text-yellow-400">الرفع الشامل للقاموس</h2>
+            <div class="flex flex-col gap-4">
+                
+                <div class="flex items-center gap-4 bg-gray-600 p-3 rounded">
+                    <input type="file" id="csvMasterInp" accept=".csv" class="hidden">
+                    <button id="btnSelectFile" class="bg-blue-600 hover:bg-blue-700 font-bold py-2 px-6 rounded transition-colors whitespace-nowrap">
+                        1. اختر ملف CSV
+                    </button>
+                    <span id="fileNameDisplay" class="text-gray-300 font-mono text-sm">لم يتم اختيار ملف بعد...</span>
+                </div>
+
+                <div class="flex items-center gap-4">
+                    <button id="btnUploadData" class="bg-green-600 hover:bg-green-700 font-bold py-2 px-6 rounded transition-colors w-full">
+                        2. تأكيد ورفع البيانات 🚀
+                    </button>
+                    <button id="btnDeleteAll" class="bg-red-600 hover:bg-red-700 font-bold py-2 px-6 rounded transition-colors whitespace-nowrap">
+                        مسح جميع الكروت ⚠️
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-700 p-6 rounded-lg shadow-lg">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-600 pb-2">
+                <h2 class="text-xl font-bold">الكروت المتوفرة في القاموس</h2>
+                <span id="totalCardsCount" class="bg-blue-600 text-white px-3 py-1 rounded text-sm font-bold">العدد: 0</span>
+            </div>
+            <div class="overflow-x-auto h-96 overflow-y-auto">
+                <table class="w-full text-right relative">
+                    <thead class="bg-gray-600 text-gray-300 sticky top-0">
+                        <tr>
+                            <th class="p-3">المجموعة</th>
+                            <th class="p-3">اسم الكرت</th>
+                            <th class="p-3">النجوم</th>
+                            <th class="p-3">النوع</th>
+                        </tr>
+                    </thead>
+                    <tbody id="masterCardsTable" class="divide-y divide-gray-600">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // مفاتيح Supabase مدمجة وجاهزة
+        const SB_URL = 'https://phdfdrrxeisdnjgrybvd.supabase.co';
+        const SB_KEY = 'sb_publishable_sWVLmXEX4ABujvE60r6nAw_0otUcQOj';
+        let supabaseClient = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                if (SB_URL.startsWith('http')) {
+                    supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+                }
+            } catch (error) {
+                console.error("خطأ في تهيئة Supabase:", error);
+            }
+
+            const fileInput = document.getElementById('csvMasterInp');
+            const btnSelect = document.getElementById('btnSelectFile');
+            const btnUpload = document.getElementById('btnUploadData');
+            const btnDelete = document.getElementById('btnDeleteAll');
+
+            btnSelect.addEventListener('click', () => fileInput.click());
+            
+            fileInput.addEventListener('click', function() { this.value = null; });
+            fileInput.addEventListener('change', showFileName);
+            
+            btnUpload.addEventListener('click', processUpload);
+            btnDelete.addEventListener('click', deleteAllCards);
+
+            loadMasterCards();
+        });
+
+        function showFileName() {
+            const fileInput = document.getElementById('csvMasterInp');
+            const display = document.getElementById('fileNameDisplay');
+            const sectionTitle = document.getElementById('uploadSectionTitle');
+            
+            if (fileInput.files && fileInput.files.length > 0) {
+                const fileName = fileInput.files[0].name;
+                display.innerText = "الملف المختار: " + fileName;
+                display.classList.remove('text-gray-300');
+                display.classList.add('text-green-400');
+                sectionTitle.innerText = "الرفع الشامل (ملف: " + fileName + ")";
+            } else {
+                display.innerText = "لم يتم اختيار ملف بعد...";
+                display.classList.remove('text-green-400');
+                display.classList.add('text-gray-300');
+                sectionTitle.innerText = "الرفع الشامل للقاموس";
+            }
+        }
+
+        async function processUpload() {
+            if (!supabaseClient) {
+                alert("❌ خطأ: لم يتم الاتصال بقاعدة البيانات.");
+                return;
+            }
+
+            const file = document.getElementById('csvMasterInp').files[0];
+            if (!file) {
+                alert("⚠️ يرجى اختيار ملف CSV أولاً من الخطوة 1!");
+                return;
+            }
+
+            const btn = document.getElementById('btnUploadData');
+            btn.innerText = "جاري المعالجة...";
+            btn.disabled = true;
+
+            Papa.parse(file, {
+                skipEmptyLines: true,
+                complete: async function(results) {
+                    try {
+                        const rows = results.data;
+                        const cardsToInsert = [];
+                        let currentSet = "مجموعة غير معروفة";
+
+                        if (rows.length < 2) {
+                            alert("⚠️ الملف يبدو فارغاً!");
+                            resetBtn(btn);
+                            return;
+                        }
+
+                        for (let i = 1; i < rows.length; i++) {
+                            const cols = rows[i];
+                            if (cols.length >= 3) {
+                                let setNameStr = cols[0] ? cols[0].replace(/\r?\n|\r/g, ' ').trim() : "";
+                                let cardName = cols[1] ? cols[1].replace(/\r?\n|\r/g, ' ').trim() : "";
+                                let starsStr = cols[2] ? cols[2].trim() : "";
+                                
+                                if (setNameStr !== "") currentSet = setNameStr;
+
+                                if (cardName !== "") {
+                                    const starsCount = [...starsStr].filter(c => c === '⭐' || c === '🌟').length || 1;
+                                    const isGold = starsStr.includes('🌟');
+                                    
+                                    cardsToInsert.push({
+                                        set_name: currentSet,
+                                        card_name: cardName,
+                                        stars: starsCount,
+                                        is_gold: isGold
+                                    });
+                                }
+                            }
+                        }
+
+                        if (cardsToInsert.length === 0) {
+                            alert("⚠️ لم نتمكن من استخراج كروت.");
+                            resetBtn(btn);
+                            return;
+                        }
+
+                        btn.innerText = "جاري الحفظ في السحابة...";
+                        const { data, error } = await supabaseClient.from('master_cards').insert(cardsToInsert).select();
+                        resetBtn(btn);
+                        
+                        if (error) {
+                            alert("❌ خطأ من قاعدة البيانات: \n" + error.message);
+                        } else {
+                            alert(`🎉 نجاح تام! تم حفظ ${cardsToInsert.length} كرت في قاعدة البيانات.`);
+                            document.getElementById('csvMasterInp').value = '';
+                            showFileName();
+                            loadMasterCards();
+                        }
+                    } catch (err) {
+                        alert("❌ حدث خطأ: " + err.message);
+                        resetBtn(btn);
+                    }
+                },
+                error: function(error) {
+                    alert("❌ فشل المتصفح في القراءة: " + error.message);
+                    resetBtn(btn);
+                }
+            });
+        }
+
+        function resetBtn(btn) {
+            btn.innerText = "2. تأكيد ورفع البيانات 🚀";
+            btn.disabled = false;
+        }
+
+        async function deleteAllCards() {
+            if(!supabaseClient) return;
+            if(!confirm('هل أنت متأكد تماماً من مسح جميع الكروت؟')) return;
+            const { error } = await supabaseClient.from('master_cards').delete().gt('id', 0);
+            if(error) alert("خطأ: " + error.message);
+            else { alert("تم المسح."); loadMasterCards(); }
+        }
+
+        async function loadMasterCards() {
+            const tbody = document.getElementById('masterCardsTable');
+            if(!supabaseClient) return;
+
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4">جاري التحميل...</td></tr>';
+            const { data, error } = await supabaseClient.from('master_cards').select('*').order('id', { ascending: true });
+            
+            if (error) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-red-500 p-4">خطأ في الجلب: ${error.message}</td></tr>`;
+                return;
