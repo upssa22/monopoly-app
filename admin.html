@@ -14,9 +14,9 @@
         <h1 class="text-3xl font-bold text-center text-yellow-400 mb-8">لوحة تحكم الإدارة (القاموس الأساسي)</h1>
         
         <div class="bg-gray-700 p-6 rounded-lg shadow-lg mb-8 border border-yellow-500">
-            <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2 text-yellow-400">الرفع الشامل (ملف اللعبة الأصلي)</h2>
+            <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2 text-yellow-400">الرفع الشامل (ملف اللعبة الأصلي MR17.CSV)</h2>
             <p class="text-sm text-gray-300 mb-4">
-                هذا الزر مبرمج خصيصاً ليقرأ ملفاتك، يكتشف المجموعات ذات الأسطر المتعددة، ويعد النجوم تلقائياً!
+                هذا الزر مبرمج خصيصاً ليقرأ ملفاتك، يكتشف المجموعات المدمجة، ويعد النجوم تلقائياً، مع رسائل تنبيه توضح حالة الرفع!
             </p>
             <div class="flex items-center gap-4">
                 <input type="file" id="csvMasterInp" accept=".csv" class="hidden" onchange="uploadMasterCSV()">
@@ -85,13 +85,13 @@
     </div>
 
     <script>
-        // --------- ضع مفاتيحك هنا ---------
-        const SB_URL = 'https://phdfdrrxeisdnjgrybvd.supabase.co';
-        const SB_KEY = 'sb_publishable_sWVLmXEX4ABujvE60r6nAw_0otUcQOj';
-        // ----------------------------------
+        // --------- لا تنسَ وضع مفاتيحك هنا ---------
+        const SB_URL = 'ضع_الرابط_هنا';
+        const SB_KEY = 'ضع_المفتاح_هنا';
+        // -------------------------------------------
         const supabase = supabase.createClient(SB_URL, SB_KEY);
 
-        // دالة الرفع الشامل باستخدام مكتبة PapaParse الذكية
+        // دالة الرفع الشامل باستخدام مكتبة PapaParse
         async function uploadMasterCSV() {
             const file = document.getElementById('csvMasterInp').files[0];
             if (!file) return;
@@ -100,29 +100,29 @@
             btn.innerText = "جاري القراءة والمعالجة...";
             btn.classList.add("opacity-50", "cursor-not-allowed");
 
-            // استخدام PapaParse لضمان قراءة الأسطر المتعددة داخل الخلايا بشكل صحيح
             Papa.parse(file, {
+                skipEmptyLines: true, // تجاهل الأسطر الفارغة
                 complete: async function(results) {
                     const rows = results.data;
                     const cardsToInsert = [];
                     let currentSet = "مجموعة غير معروفة";
 
-                    // نبدأ من 1 لتجاهل صف العناوين (Header)
+                    // نبدأ من 1 لتجاهل صف العناوين
                     for (let i = 1; i < rows.length; i++) {
                         const cols = rows[i];
                         
-                        // التأكد من أن الصف يحتوي على بيانات
+                        // يجب أن يحتوي الصف على 3 أعمدة على الأقل (المجموعة، الكرت، النجوم)
                         if (cols.length >= 3) {
-                            // تنظيف النص واستبدال "النزول لسطر جديد" بـ "مسافة"
                             let setNameStr = cols[0] ? cols[0].replace(/\r?\n|\r/g, ' ').trim() : "";
                             let cardName = cols[1] ? cols[1].replace(/\r?\n|\r/g, ' ').trim() : "";
                             let starsStr = cols[2] ? cols[2].trim() : "";
                             
+                            // تحديث اسم المجموعة إذا لم يكن فارغاً
                             if (setNameStr !== "") {
                                 currentSet = setNameStr;
                             }
 
-                            if (cardName && cardName !== "") {
+                            if (cardName !== "") {
                                 const starsCount = [...starsStr].filter(c => c === '⭐' || c === '🌟').length || 1;
                                 const isGold = starsStr.includes('🌟');
                                 
@@ -136,21 +136,28 @@
                         }
                     }
 
+                    // التنبيه الأول: يخبرنا كم كرت تمت قراءته من الملف
+                    alert(`تمت قراءة الملف بنجاح! وجدنا ${cardsToInsert.length} كرت. جاري الآن الحفظ في قاعدة البيانات...`);
+
                     if (cardsToInsert.length === 0) {
-                        alert("الملف فارغ أو التنسيق غير صحيح!");
+                        alert("لم يتم العثور على كروت صالحة. تأكد من محتوى الملف.");
                         resetBtn(btn);
                         return;
                     }
 
                     btn.innerText = "جاري الرفع للسحابة...";
+                    
+                    // رفع الكروت لـ Supabase
                     const { error } = await supabase.from('master_cards').insert(cardsToInsert);
                     
                     resetBtn(btn);
                     
                     if (error) {
-                        alert("حدث خطأ أثناء الرفع: " + error.message);
+                        // التنبيه الثاني: إذا كان هناك خطأ في الصلاحيات (RLS) سيظهر هنا
+                        alert("خطأ من قاعدة البيانات: " + error.message);
                     } else {
-                        alert(`عمل رائع! تم استخراج ورفع ${cardsToInsert.length} كرت للقاموس بنجاح!`);
+                        // التنبيه الثالث: نجاح العملية
+                        alert("عمل رائع! تم استخراج ورفع الكروت للقاموس بنجاح!");
                         loadMasterCards();
                     }
                 },
@@ -199,7 +206,7 @@
             const { data, error } = await supabase.from('master_cards').select('*').order('id', { ascending: true });
             
             if (error) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-500 p-4">${error.message}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-500 p-4">يرجى التأكد من تعطيل (Disable RLS) من Supabase<br>${error.message}</td></tr>`;
                 return;
             }
 
