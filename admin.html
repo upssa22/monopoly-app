@@ -59,9 +59,7 @@
     </div>
 
     <script>
-        // ==========================================
-        // ⚠️ مهم جداً: ضع مفاتيح Supabase الخاصة بك هنا
-        // ==========================================
+        // مفاتيحك المدمجة والجاهزة:
         const SB_URL = 'https://phdfdrrxeisdnjgrybvd.supabase.co';
         const SB_KEY = 'sb_publishable_sWVLmXEX4ABujvE60r6nAw_0otUcQOj';
         
@@ -75,7 +73,7 @@
             console.error("خطأ في تهيئة Supabase:", error);
         }
 
-        // دالة تغيير اسم الملف والعنوان الديناميكي
+        // دالة تغيير اسم الملف
         function showFileName() {
             const fileInput = document.getElementById('csvMasterInp');
             const display = document.getElementById('fileNameDisplay');
@@ -83,13 +81,9 @@
             
             if (fileInput.files && fileInput.files.length > 0) {
                 const fileName = fileInput.files[0].name;
-                
-                // تحديث النص بجانب الزر
                 display.innerText = "الملف المختار: " + fileName;
                 display.classList.remove('text-gray-300');
                 display.classList.add('text-green-400');
-                
-                // تحديث العنوان الرئيسي في الأعلى ديناميكياً
                 sectionTitle.innerText = "الرفع الشامل (ملف: " + fileName + ")";
             } else {
                 display.innerText = "لم يتم اختيار ملف بعد...";
@@ -99,9 +93,10 @@
             }
         }
 
+        // دالة الرفع
         async function processUpload() {
             if (!supabaseClient) {
-                alert("❌ خطأ: لم يتم الاتصال بقاعدة البيانات. تأكد من وضع رابط ومفتاح Supabase في الكود.");
+                alert("❌ خطأ: لم يتم الاتصال بقاعدة البيانات.");
                 return;
             }
 
@@ -153,7 +148,7 @@
                         }
 
                         if (cardsToInsert.length === 0) {
-                            alert("⚠️ لم نتمكن من استخراج كروت من الملف. تأكد من صيغة الملف.");
+                            alert("⚠️ لم نتمكن من استخراج كروت من الملف.");
                             resetBtn(btn);
                             return;
                         }
@@ -169,11 +164,11 @@
                         } else {
                             alert(`🎉 نجاح تام! تم استخراج وحفظ ${cardsToInsert.length} كرت في قاعدة البيانات.`);
                             document.getElementById('csvMasterInp').value = '';
-                            showFileName(); // ستقوم هذه الدالة بإرجاع العنوان لأصله تلقائياً
+                            showFileName();
                             loadMasterCards();
                         }
                     } catch (err) {
-                        alert("❌ حدث خطأ برمجي غير متوقع: " + err.message);
+                        alert("❌ حدث خطأ برمجي: " + err.message);
                         resetBtn(btn);
                     }
                 },
@@ -190,6 +185,46 @@
         }
 
         async function deleteAllCards() {
-            if(!supabaseClient) return alert("خطأ في الاتصال بالقاعدة.");
+            if(!supabaseClient) return;
             if(!confirm('هل أنت متأكد تماماً من مسح جميع الكروت؟')) return;
             const { error } = await supabaseClient.from('master_cards').delete().gt('id', 0);
+            if(error) alert("خطأ: " + error.message);
+            else { alert("تم المسح."); loadMasterCards(); }
+        }
+
+        async function loadMasterCards() {
+            const tbody = document.getElementById('masterCardsTable');
+            if(!supabaseClient) return;
+
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4">جاري التحميل...</td></tr>';
+            
+            const { data, error } = await supabaseClient.from('master_cards').select('*').order('id', { ascending: true });
+            
+            if (error) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-red-500 p-4">خطأ في الجلب: ${error.message}</td></tr>`;
+                return;
+            }
+
+            document.getElementById('totalCardsCount').innerText = `العدد: ${data.length}`;
+
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">القاموس فارغ حالياً.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(card => `
+                <tr class="hover:bg-gray-600 border-b border-gray-600">
+                    <td class="p-3">${card.set_name}</td>
+                    <td class="p-3 font-bold ${card.is_gold ? 'text-yellow-400' : ''}">${card.card_name}</td>
+                    <td class="p-3">${'⭐'.repeat(card.stars)}</td>
+                    <td class="p-3">${card.is_gold ? '<span class="bg-yellow-600 text-xs px-2 py-1 rounded">ذهبي</span>' : '<span class="text-gray-400 text-xs">عادي</span>'}</td>
+                </tr>
+            `).join('');
+        }
+
+        window.onload = function() {
+            loadMasterCards();
+        };
+    </script>
+</body>
+</html>
