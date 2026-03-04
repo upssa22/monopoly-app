@@ -14,10 +14,11 @@
         <h1 class="text-3xl font-bold text-center text-yellow-400 mb-8">لوحة تحكم الإدارة (القاموس الأساسي)</h1>
         
         <div class="bg-gray-700 p-6 rounded-lg shadow-lg mb-8 border border-yellow-500">
-            <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2 text-yellow-400">الرفع الشامل (ملف MR17.CSV)</h2>
+            <h2 id="uploadSectionTitle" class="text-xl font-bold mb-4 border-b border-gray-600 pb-2 text-yellow-400">الرفع الشامل للقاموس</h2>
             <div class="flex flex-col gap-4">
+                
                 <div class="flex items-center gap-4 bg-gray-600 p-3 rounded">
-                    <input type="file" id="csvMasterInp" accept=".csv" class="hidden" onchange="showFileName()">
+                    <input type="file" id="csvMasterInp" accept=".csv" class="hidden" onclick="this.value=null" onchange="showFileName()">
                     <button onclick="document.getElementById('csvMasterInp').click()" class="bg-blue-600 hover:bg-blue-700 font-bold py-2 px-6 rounded transition-colors whitespace-nowrap">
                         1. اختر ملف CSV
                     </button>
@@ -34,9 +35,6 @@
                 </div>
             </div>
         </div>
-
-        <div class="bg-gray-700 p-6 rounded-lg shadow-lg mb-8 hidden"> <h2 class="text-xl font-bold mb-4 border-b border-gray-600 pb-2">إضافة كرت فردي يدوياً</h2>
-            </div>
 
         <div class="bg-gray-700 p-6 rounded-lg shadow-lg">
             <div class="flex justify-between items-center mb-4 border-b border-gray-600 pb-2">
@@ -61,34 +59,49 @@
     </div>
 
     <script>
-        // --------- لا تنسَ وضع مفاتيحك هنا ---------
-        const SB_URL = 'ضع_الرابط_هنا';
-        const SB_KEY = 'ضع_المفتاح_هنا';
-        // -------------------------------------------
-        const supabase = supabase.createClient(SB_URL, SB_KEY);
+        // ==========================================
+        // ⚠️ مهم جداً: ضع مفاتيح Supabase الخاصة بك هنا
+        // ==========================================
+        const SB_URL = 'https://phdfdrrxeisdnjgrybvd.supabase.co';
+        const SB_KEY = 'sb_publishable_sWVLmXEX4ABujvE60r6nAw_0otUcQOj';
+        
+        let supabaseClient = null;
 
-        // حل مشكلة بقاء الملف عند تحديث الصفحة
-        function clearFileInput() {
-            const inp = document.getElementById('csvMasterInp');
-            if(inp) inp.value = '';
-            showFileName();
+        try {
+            if (SB_URL.startsWith('http')) {
+                supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+            }
+        } catch (error) {
+            console.error("خطأ في تهيئة Supabase:", error);
         }
 
+        // دالة تغيير اسم الملف والعنوان الديناميكي
         function showFileName() {
-            const file = document.getElementById('csvMasterInp').files[0];
+            const fileInput = document.getElementById('csvMasterInp');
             const display = document.getElementById('fileNameDisplay');
-            if (file) {
-                display.innerText = "الملف المختار: " + file.name;
-                display.classList.replace('text-gray-300', 'text-green-400');
+            const sectionTitle = document.getElementById('uploadSectionTitle');
+            
+            if (fileInput.files && fileInput.files.length > 0) {
+                const fileName = fileInput.files[0].name;
+                
+                // تحديث النص بجانب الزر
+                display.innerText = "الملف المختار: " + fileName;
+                display.classList.remove('text-gray-300');
+                display.classList.add('text-green-400');
+                
+                // تحديث العنوان الرئيسي في الأعلى ديناميكياً
+                sectionTitle.innerText = "الرفع الشامل (ملف: " + fileName + ")";
             } else {
                 display.innerText = "لم يتم اختيار ملف بعد...";
-                display.classList.replace('text-green-400', 'text-gray-300');
+                display.classList.remove('text-green-400');
+                display.classList.add('text-gray-300');
+                sectionTitle.innerText = "الرفع الشامل للقاموس";
             }
         }
 
         async function processUpload() {
-            if (typeof Papa === 'undefined') {
-                alert("❌ خطأ: مكتبة قراءة الملفات لم يتم تحميلها! يرجى التأكد من اتصال الإنترنت.");
+            if (!supabaseClient) {
+                alert("❌ خطأ: لم يتم الاتصال بقاعدة البيانات. تأكد من وضع رابط ومفتاح Supabase في الكود.");
                 return;
             }
 
@@ -100,7 +113,6 @@
 
             const btn = document.getElementById('uploadBtn');
             btn.innerText = "جاري المعالجة...";
-            btn.classList.add("opacity-50", "cursor-not-allowed");
             btn.disabled = true;
 
             Papa.parse(file, {
@@ -146,23 +158,18 @@
                             return;
                         }
 
-                        // رسالة تأكيد القراءة
-                        alert(`✅ الخطوة 1 نجحت: تم العثور على ${cardsToInsert.length} كرت في الملف. جاري الإرسال لقاعدة البيانات الآن...`);
-
                         btn.innerText = "جاري الحفظ في السحابة...";
                         
-                        // الإرسال لقاعدة البيانات (أضفنا select() لنتأكد من رجوع البيانات)
-                        const { data, error } = await supabase.from('master_cards').insert(cardsToInsert).select();
+                        const { data, error } = await supabaseClient.from('master_cards').insert(cardsToInsert).select();
                         
                         resetBtn(btn);
                         
                         if (error) {
-                            alert("❌ خطأ من قاعدة البيانات: " + error.message + "\n(تأكد من تعطيل RLS في Supabase أو أن أسماء الأعمدة مطابقة تماماً).");
-                        } else if (!data || data.length === 0) {
-                             alert("⚠️ يبدو أن البيانات أُرسلت ولكن قاعدة البيانات لم تقبلها. تأكد من إعدادات الجدول.");
+                            alert("❌ خطأ من قاعدة البيانات: \n" + error.message);
                         } else {
-                            alert(`🎉 نجاح تام! تم تأكيد حفظ ${data.length} كرت في قاعدة البيانات.`);
-                            clearFileInput();
+                            alert(`🎉 نجاح تام! تم استخراج وحفظ ${cardsToInsert.length} كرت في قاعدة البيانات.`);
+                            document.getElementById('csvMasterInp').value = '';
+                            showFileName(); // ستقوم هذه الدالة بإرجاع العنوان لأصله تلقائياً
                             loadMasterCards();
                         }
                     } catch (err) {
@@ -179,45 +186,10 @@
 
         function resetBtn(btn) {
             btn.innerText = "2. تأكيد ورفع البيانات 🚀";
-            btn.classList.remove("opacity-50", "cursor-not-allowed");
             btn.disabled = false;
         }
 
         async function deleteAllCards() {
+            if(!supabaseClient) return alert("خطأ في الاتصال بالقاعدة.");
             if(!confirm('هل أنت متأكد تماماً من مسح جميع الكروت؟')) return;
-            const { error } = await supabase.from('master_cards').delete().gt('id', 0);
-            if(error) alert("خطأ: " + error.message);
-            else { alert("تم المسح."); loadMasterCards(); }
-        }
-
-        async function loadMasterCards() {
-            const tbody = document.getElementById('masterCardsTable');
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4">جاري التحميل...</td></tr>';
-            
-            const { data, error } = await supabase.from('master_cards').select('*').order('id', { ascending: true });
-            
-            if (error) {
-                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-red-500 p-4">خطأ في الجلب: ${error.message}</td></tr>`;
-                return;
-            }
-
-            document.getElementById('totalCardsCount').innerText = `العدد: ${data.length}`;
-
-            if(data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-gray-400">القاموس فارغ حالياً.</td></tr>';
-                return;
-            }
-
-            tbody.innerHTML = data.map(card => `
-                <tr class="hover:bg-gray-600 border-b border-gray-600">
-                    <td class="p-3">${card.set_name}</td>
-                    <td class="p-3 font-bold ${card.is_gold ? 'text-yellow-400' : ''}">${card.card_name}</td>
-                    <td class="p-3">${'⭐'.repeat(card.stars)}</td>
-                    <td class="p-3">${card.is_gold ? '<span class="bg-yellow-600 text-xs px-2 py-1 rounded">ذهبي</span>' : '<span class="text-gray-400 text-xs">عادي</span>'}</td>
-                </tr>
-            `).join('');
-        }
-
-        window.onload = function() {
-            clearFileInput(); // تفريغ الخانة عند بدء الصفحة
-            loadMaster
+            const { error } = await supabaseClient.from('master_cards').delete().gt('id', 0);
