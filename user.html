@@ -3,62 +3,49 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مدير مجموعتي | Monopoly Go</title>
+    <title>مدير كروتي الشخصية</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <style>
-        body { font-family: system-ui, sans-serif; background-color: #0f172a; }
-        .card-row:hover { background-color: rgba(30, 41, 59, 0.5); }
-    </style>
+    <style>body { font-family: system-ui, sans-serif; background-color: #0f172a; }</style>
 </head>
 <body class="text-slate-200 min-h-screen p-4 md:p-8">
     <div class="max-w-5xl mx-auto">
-        <header class="text-center mb-10">
-            <h1 class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500 mb-2">
-                إدارة كروتي الشخصية
-            </h1>
-            <p class="text-slate-400">تحديث الكميات بالمطابقة مع القاموس الأساسي</p>
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-green-400 mb-2">مدير مجموعة الكروت الشخصية</h1>
+            <p class="text-slate-400">إدارة الكميات والمطابقة مع القاموس الأساسي</p>
         </header>
 
         <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-xl mb-8">
-            <div class="flex flex-col md:flex-row items-center justify-between gap-6">
-                <div>
-                    <h2 class="text-xl font-bold text-white mb-1">تحديث سريع عبر CSV</h2>
-                    <p class="text-sm text-slate-400">سيتم فقط إضافة الكروت الموجودة في "القاموس الأساسي"</p>
+            <h2 class="text-lg font-bold text-white mb-4">تحديث سريع للأعداد</h2>
+            <div class="flex flex-col md:flex-row items-center gap-4">
+                <div class="flex-1 flex items-center gap-3 bg-slate-900 p-3 rounded-lg w-full">
+                    <input type="file" id="csvFileInp" accept=".csv" class="hidden" onchange="document.getElementById('fileStatus').innerText = this.files[0].name">
+                    <button onclick="document.getElementById('csvFileInp').click()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded font-medium border border-slate-600 transition">اختر ملف CSV</button>
+                    <span id="fileStatus" class="text-sm text-slate-500 italic">لم يتم اختيار ملف</span>
                 </div>
-                <div class="flex items-center gap-3">
-                    <input type="file" id="csvInp" accept=".csv" class="hidden" onchange="updateFileLabel()">
-                    <button onclick="document.getElementById('csvInp').click()" class="bg-slate-700 hover:bg-slate-600 px-5 py-2 rounded-lg font-medium transition border border-slate-600">
-                        اختر الملف
-                    </button>
-                    <span id="fileLabel" class="text-xs text-slate-500 max-w-[150px] truncate">لم يتم الاختيار</span>
-                    <button onclick="syncWithMaster()" id="syncBtn" class="bg-green-600 hover:bg-green-500 px-6 py-2 rounded-lg font-bold text-white shadow-lg transition">
-                        تحديث الكميات 🚀
-                    </button>
-                </div>
+                <button onclick="syncUserCards()" id="syncBtn" class="bg-green-600 hover:bg-green-500 px-8 py-3 rounded-lg font-bold text-white shadow-lg transition w-full md:w-auto">
+                    تحديث الكميات 🚀
+                </button>
             </div>
         </div>
 
         <div class="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden shadow-xl">
-            <div class="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
-                <h3 class="font-bold text-lg text-white">الكروت التي أمتلكها</h3>
-                <div id="statusInfo" class="text-sm font-medium text-green-400 bg-green-400/10 px-3 py-1 rounded-full">
-                    جاري جلب البيانات...
-                </div>
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
+                <h3 class="font-bold">كروتي الحالية</h3>
+                <span id="cardStat" class="text-xs font-bold bg-green-500/10 text-green-400 px-3 py-1 rounded-full border border-green-500/20">جاري التحميل...</span>
             </div>
-
-            <div class="overflow-x-auto max-h-[500px]">
+            <div class="overflow-x-auto max-h-[600px]">
                 <table class="w-full text-right">
-                    <thead>
-                        <tr class="text-slate-400 text-sm uppercase tracking-wider bg-slate-900/50">
-                            <th class="p-4 font-semibold">المجموعة</th>
-                            <th class="p-4 font-semibold">الكرت</th>
-                            <th class="p-4 font-semibold text-center">الكمية المملوكة</th>
-                            <th class="p-4 font-semibold text-center">حذف</th>
+                    <thead class="bg-slate-900/50 text-slate-400 text-sm">
+                        <tr>
+                            <th class="p-4">المجموعة</th>
+                            <th class="p-4">الكرت</th>
+                            <th class="p-4 text-center">الكمية</th>
+                            <th class="p-4 text-center">إجراءات</th>
                         </tr>
                     </thead>
-                    <tbody id="myCardsTable" class="divide-y divide-slate-700">
+                    <tbody id="userCardsList" class="divide-y divide-slate-700">
                         </tbody>
                 </table>
             </div>
@@ -66,126 +53,104 @@
     </div>
 
     <script>
-        // مفاتيحك المربوطة بالجداول الموضحة في الصور
         const SB_URL = 'https://phdfdrrxeisdnjgrybvd.supabase.co';
         const SB_KEY = 'sb_publishable_sWVLmXEX4ABujvE60r6nAw_0otUcQOj';
         const supabase = supabase.createClient(SB_URL, SB_KEY);
 
-        function updateFileLabel() {
-            const file = document.getElementById('csvInp').files[0];
-            document.getElementById('fileLabel').innerText = file ? file.name : "لم يتم الاختيار";
-        }
-
-        async function syncWithMaster() {
-            const file = document.getElementById('csvInp').files[0];
+        // وظيفة المطابقة والرفع
+        async function syncUserCards() {
+            const file = document.getElementById('csvFileInp').files[0];
             if (!file) return alert("يرجى اختيار ملف CSV أولاً");
 
             const btn = document.getElementById('syncBtn');
             btn.innerText = "جاري المطابقة...";
             btn.disabled = true;
 
-            // جلب القاموس الأساسي للمقارنة بالأسماء
-            const { data: masterCards } = await supabase.from('master_cards').select('card_name');
-            const masterNames = new Set(masterCards.map(c => c.card_name.trim().toLowerCase()));
+            // جلب أسماء القاموس الأساسي لضمان ثبات الأسماء
+            const { data: masterData } = await supabase.from('master_cards').select('card_name');
+            const validNames = new Set(masterData.map(m => m.card_name.trim().toLowerCase()));
 
             Papa.parse(file, {
                 skipEmptyLines: true,
                 complete: async function(results) {
                     const rows = results.data;
-                    const updates = [];
+                    const toInsert = [];
 
                     for(let i=1; i<rows.length; i++) {
-                        const cols = rows[i];
-                        if(cols.length >= 4) {
-                            const csvSetName = cols[0].trim();
-                            const csvCardName = cols[1].trim();
-                            const csvCount = parseInt(cols[3].replace(/\D/g, '')) || 0;
+                        const col = rows[i];
+                        if(col.length >= 4) {
+                            const cName = col[1].trim();
+                            const cSet = col[0].trim();
+                            const cCount = parseInt(col[3].replace(/\D/g, '')) || 1;
 
-                            // المطابقة الذكية: فقط الكروت الموجودة في القاموس
-                            if (masterNames.has(csvCardName.toLowerCase())) {
-                                updates.push({
-                                    card_name: csvCardName,
-                                    set_name: csvSetName,
-                                    count: csvCount,
-                                    is_gold: cols[2].includes('🌟') // تحديد إذا كان ذهبي من الملف
-                                });
+                            // إضافة الكرت فقط إذا كان موجوداً في القاموس الأساسي
+                            if(validNames.has(cName.toLowerCase())) {
+                                toInsert.push({ set_name: cSet, card_name: cName, count: cCount });
                             }
                         }
                     }
 
-                    if (updates.length > 0) {
-                        // تفريغ الجدول الشخصي وتحديثه بالجديد المطابق
-                        await supabase.from('user_cards').delete().gt('id', 0);
-                        const { error } = await supabase.from('user_cards').insert(updates);
-                        
-                        if (!error) {
-                            alert(`نجاح! تم تحديث ${updates.length} كرت مطابق للقاموس.`);
-                        } else {
-                            alert("حدث خطأ أثناء الحفظ: " + error.message);
-                        }
+                    if(toInsert.length > 0) {
+                        await supabase.from('user_cards').delete().gt('id', 0); // مسح القديم
+                        const { error } = await supabase.from('user_cards').insert(toInsert);
+                        if(!error) alert(`تم تحديث ${toInsert.length} كرت بنجاح!`);
                     } else {
-                        alert("لا توجد كروت في الملف تطابق القاموس الأساسي.");
+                        alert("لم يتم العثور على كروت مطابقة للقاموس في الملف.");
                     }
 
                     btn.innerText = "تحديث الكميات 🚀";
                     btn.disabled = false;
-                    loadMyCards();
+                    loadUserCards();
                 }
             });
         }
 
-        async function loadMyCards() {
-            const tbody = document.getElementById('myCardsTable');
-            const status = document.getElementById('statusInfo');
-            
+        async function loadUserCards() {
             const { data, error } = await supabase.from('user_cards').select('*').order('set_name', { ascending: true });
-
+            const tbody = document.getElementById('userCardsList');
             if (error) return;
 
-            status.innerText = `أنواع الكروت: ${data.length}`;
-
-            if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="p-10 text-center text-slate-500">لا توجد كروت حالياً.</td></tr>';
+            document.getElementById('cardStat').innerText = `الأنواع: ${data.length}`;
+            
+            if(data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-500">لا توجد كروت. ارفع ملفك للمطابقة.</td></tr>';
                 return;
             }
 
             tbody.innerHTML = data.map(card => `
-                <tr class="card-row transition">
+                <tr class="hover:bg-slate-700/30 transition">
                     <td class="p-4 text-slate-400 text-sm">${card.set_name}</td>
-                    <td class="p-4 font-bold ${card.is_gold ? 'text-yellow-400' : 'text-white'}">${card.card_name}</td>
+                    <td class="p-4 font-bold text-white">${card.card_name}</td>
                     <td class="p-4 text-center">
                         <div class="flex items-center justify-center gap-3">
-                            <button onclick="changeQty(${card.id}, -1)" class="w-8 h-8 rounded-lg bg-slate-700 hover:bg-red-900/40 text-slate-300 hover:text-red-400 transition border border-slate-600">-</button>
-                            <span class="text-xl font-mono font-bold text-green-400 w-10 text-center">${card.count}</span>
-                            <button onclick="changeQty(${card.id}, 1)" class="w-8 h-8 rounded-lg bg-slate-700 hover:bg-green-900/40 text-slate-300 hover:text-green-400 transition border border-slate-600">+</button>
+                            <button onclick="modifyCount(${card.id}, -1)" class="w-8 h-8 rounded bg-slate-700 border border-slate-600 hover:text-red-400 transition">-</button>
+                            <span class="text-xl font-mono font-bold text-green-400 w-8">${card.count || 0}</span>
+                            <button onclick="modifyCount(${card.id}, 1)" class="w-8 h-8 rounded bg-slate-700 border border-slate-600 hover:text-green-400 transition">+</button>
                         </div>
                     </td>
                     <td class="p-4 text-center">
-                        <button onclick="removeCard(${card.id})" class="text-slate-500 hover:text-red-500 transition">
-                             حذف
-                        </button>
+                        <button onclick="deleteRow(${card.id})" class="text-slate-500 hover:text-red-500 text-xs underline">حذف</button>
                     </td>
                 </tr>
             `).join('');
         }
 
-        async function changeQty(id, delta) {
+        async function modifyCount(id, change) {
             const { data } = await supabase.from('user_cards').select('count').eq('id', id).single();
-            let newCount = (data.count || 0) + delta;
-            if (newCount < 0) newCount = 0;
-
-            const { error } = await supabase.from('user_cards').update({ count: newCount }).eq('id', id);
-            if (!error) loadMyCards();
+            let newVal = (data.count || 0) + change;
+            if (newVal < 0) newVal = 0;
+            await supabase.from('user_cards').update({ count: newVal }).eq('id', id);
+            loadUserCards();
         }
 
-        async function removeCard(id) {
-            if (confirm("حذف هذا الكرت؟")) {
+        async function deleteRow(id) {
+            if(confirm("هل تريد حذف الكرت؟")) {
                 await supabase.from('user_cards').delete().eq('id', id);
-                loadMyCards();
+                loadUserCards();
             }
         }
 
-        window.onload = loadMyCards;
+        window.onload = loadUserCards;
     </script>
 </body>
 </html>
